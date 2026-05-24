@@ -136,7 +136,12 @@ def _sync_model_code_files(model_name: str, checkpoints_dir) -> List[str]:
         if src_file.name == "__init__.py":
             continue
         dst_file = target_dir / src_file.name
-        shutil.copy2(src_file, dst_file)
+        try:
+            shutil.copy2(src_file, dst_file)
+        except PermissionError:
+            # Network volumes may not support copystat; fall back to copyfile
+            shutil.copyfile(src_file, dst_file)
+            shutil.copymode(src_file, dst_file)
         synced.append(src_file.name)
         logger.debug(f"[Model Sync] Synced {src_file.name} -> {dst_file}")
 
