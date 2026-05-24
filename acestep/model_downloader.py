@@ -17,6 +17,16 @@ from pathlib import Path
 from loguru import logger
 
 
+def _raise_if_download_disabled(model_name: str) -> None:
+    """Fail fast if ACESTEP_DISABLE_DOWNLOAD is set and a model is missing."""
+    if os.environ.get("ACESTEP_DISABLE_DOWNLOAD", "").lower() in ("1", "true", "yes"):
+        raise RuntimeError(
+            f"Model '{model_name}' is missing from the checkpoints directory. "
+            "Pre-cached models are required because ACESTEP_DISABLE_DOWNLOAD is set. "
+            "Remove ACESTEP_DISABLE_DOWNLOAD to allow runtime downloads."
+        )
+
+
 # =============================================================================
 # Model Code File Sync (GitHub repo -> checkpoint directories)
 # =============================================================================
@@ -232,6 +242,8 @@ def _smart_download(
     Returns:
         Tuple of (success, message)
     """
+    _raise_if_download_disabled(repo_id)
+
     # Ensure directory exists
     local_dir.mkdir(parents=True, exist_ok=True)
 
@@ -614,6 +626,8 @@ def ensure_main_model(
     if check_main_model_exists(checkpoints_dir):
         return True, "Main model is available"
 
+    _raise_if_download_disabled("main model")
+
     print("\n" + "=" * 60)
     print("Main model not found. Starting automatic download...")
     print("=" * 60 + "\n")
@@ -649,6 +663,8 @@ def ensure_lm_model(
 
     if check_model_exists(model_name, checkpoints_dir):
         return True, f"LM model '{model_name}' is available"
+
+    _raise_if_download_disabled(model_name)
 
     # Check if this is a known LM model
     if model_name not in SUBMODEL_REGISTRY:
@@ -692,6 +708,8 @@ def ensure_dit_model(
 
     if check_model_exists(model_name, checkpoints_dir):
         return True, f"DiT model '{model_name}' is available"
+
+    _raise_if_download_disabled(model_name)
 
     # Check if this is the default turbo model (part of main)
     if model_name == "acestep-v15-turbo":
@@ -819,6 +837,8 @@ def ensure_vae_model(
 
     if check_vae_exists(vae_variant, checkpoints_dir):
         return True, f"VAE variant '{vae_variant}' is available"
+
+    _raise_if_download_disabled(vae_variant)
 
     # Absolute paths are user-supplied and cannot be downloaded. Fail with a
     # clear, path-specific diagnostic instead of routing through download_vae,

@@ -5,6 +5,16 @@ from __future__ import annotations
 import os
 
 
+def _raise_if_download_disabled(model_name: str) -> None:
+    """Fail fast if ACESTEP_DISABLE_DOWNLOAD is set and a model is missing."""
+    if os.environ.get("ACESTEP_DISABLE_DOWNLOAD", "").lower() in ("1", "true", "yes"):
+        raise RuntimeError(
+            f"Model '{model_name}' is missing from the checkpoints directory. "
+            "Pre-cached models are required because ACESTEP_DISABLE_DOWNLOAD is set. "
+            "Remove ACESTEP_DISABLE_DOWNLOAD to allow runtime downloads."
+        )
+
+
 MODEL_REPO_MAPPING = {
     "acestep-v15-turbo": "ACE-Step/Ace-Step1.5",
     "acestep-5Hz-lm-1.7B": "ACE-Step/Ace-Step1.5",
@@ -38,6 +48,7 @@ def can_access_google(timeout: float = 3.0) -> bool:
 
 def download_from_huggingface(repo_id: str, local_dir: str, model_name: str) -> str:
     """Download model snapshot from HuggingFace Hub."""
+    _raise_if_download_disabled(model_name)
 
     from huggingface_hub import snapshot_download
 
@@ -62,6 +73,7 @@ def download_from_huggingface(repo_id: str, local_dir: str, model_name: str) -> 
 
 def download_from_modelscope(repo_id: str, local_dir: str, model_name: str) -> str:
     """Download model snapshot from ModelScope."""
+    _raise_if_download_disabled(model_name)
 
     from modelscope import snapshot_download
 
@@ -100,6 +112,8 @@ def ensure_model_downloaded(model_name: str, checkpoint_dir: str) -> str:
     if os.path.exists(model_path) and os.listdir(model_path):
         print(f"[Model Download] Model {model_name} already exists at {model_path}")
         return model_path
+
+    _raise_if_download_disabled(model_name)
 
     repo_id = MODEL_REPO_MAPPING.get(model_name, DEFAULT_REPO_ID)
     print(f"[Model Download] Model {model_name} not found, checking network...")
