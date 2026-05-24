@@ -284,7 +284,8 @@ def _smart_download(
 # Model Registry
 # =============================================================================
 # Main model contains core components (vae, text_encoder, default DiT)
-MAIN_MODEL_REPO = "ACE-Step/Ace-Step1.5"
+# Allow overriding via env var so users can point to a custom HF bundle.
+MAIN_MODEL_REPO = os.getenv("ACESTEP_MAIN_MODEL_REPO", "ACE-Step/Ace-Step1.5")
 
 # Sub-models that can be downloaded separately into the checkpoints directory
 SUBMODEL_REGISTRY: Dict[str, str] = {
@@ -303,13 +304,19 @@ SUBMODEL_REGISTRY: Dict[str, str] = {
     "acestep-v15-xl-turbo": "ACE-Step/acestep-v15-xl-turbo",
 }
 
-# Components that come from the main model repo (ACE-Step/Ace-Step1.5)
-MAIN_MODEL_COMPONENTS = [
+# Components that come from the main model repo (ACE-Step/Ace-Step1.5).
+# Allow overriding via env var so a custom bundle can ship different models.
+_DEFAULT_MAIN_COMPONENTS = [
     "acestep-v15-turbo",      # Default DiT model
     "vae",                     # VAE for audio encoding/decoding
     "Qwen3-Embedding-0.6B",    # Text encoder
     "acestep-5Hz-lm-1.7B",     # Default LM model (1.7B)
 ]
+_MAIN_COMPONENTS_ENV = os.getenv("ACESTEP_MAIN_MODEL_COMPONENTS")
+if _MAIN_COMPONENTS_ENV:
+    MAIN_MODEL_COMPONENTS = [c.strip() for c in _MAIN_COMPONENTS_ENV.split(",") if c.strip()]
+else:
+    MAIN_MODEL_COMPONENTS = _DEFAULT_MAIN_COMPONENTS
 
 # Default LM model (included in main model)
 DEFAULT_LM_MODEL = "acestep-5Hz-lm-1.7B"
