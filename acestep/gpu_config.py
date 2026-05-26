@@ -1038,15 +1038,16 @@ def get_lm_gpu_memory_ratio(
             # Cap to what the LM actually needs
             usable_for_lm = min(usable_for_lm, total_target_gb)
 
-            # Convert to ratio of total GPU memory
-            # nano-vllm uses: target_total_usage = total * gpu_memory_utilization
-            # We want: (total * ratio) = current_usage + usable_for_lm
-            current_usage_gb = actual_total_gb - free_gb
-            desired_total_usage = current_usage_gb + usable_for_lm
-            ratio = desired_total_usage / actual_total_gb
+            # Convert to ratio of total GPU memory.
+            # vLLM's gpu_memory_utilization is the fraction of total GPU memory
+            # that vLLM is allowed to allocate for its own memory pool.
+            # It does not account for other allocations (e.g. DiT), so we must
+            # compute the ratio purely from what is actually free for the LM.
+            ratio = usable_for_lm / actual_total_gb
 
             ratio = min(0.9, max(0.1, ratio))
 
+            current_usage_gb = actual_total_gb - free_gb
             logger.info(
                 f"[get_lm_gpu_memory_ratio] model={model_size}, free={free_gb:.2f}GB, "
                 f"current_usage={current_usage_gb:.2f}GB, lm_target={total_target_gb:.2f}GB, "

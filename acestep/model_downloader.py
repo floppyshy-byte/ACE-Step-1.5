@@ -18,13 +18,31 @@ from loguru import logger
 
 
 def _raise_if_download_disabled(model_name: str) -> None:
-    """Fail fast if ACESTEP_DISABLE_DOWNLOAD is set and a model is missing."""
-    if os.environ.get("ACESTEP_DISABLE_DOWNLOAD", "").lower() in ("1", "true", "yes"):
-        raise RuntimeError(
-            f"Model '{model_name}' is missing from the checkpoints directory. "
-            "Pre-cached models are required because ACESTEP_DISABLE_DOWNLOAD is set. "
-            "Remove ACESTEP_DISABLE_DOWNLOAD to allow runtime downloads."
+    """Fail fast — runtime model downloads are permanently disabled."""
+    raise RuntimeError(
+        f"Model '{model_name}' is missing from the checkpoints directory. "
+        "Runtime downloads are disabled; only pre-cached models are allowed."
+    )
+
+
+def _symlink_cached_model(repo_id: str, local_dir: Path) -> bool:
+    """Symlink a model from the HuggingFace cache into local_dir without downloading.
+
+    Returns True if the model was found in cache and symlinked, False otherwise.
+    """
+    try:
+        from huggingface_hub import snapshot_download
+        snapshot_download(
+            repo_id=repo_id,
+            local_dir=str(local_dir),
+            local_dir_use_symlinks="auto",
+            local_files_only=True,
         )
+        logger.info(f"[Model Cache] Symlinked cached model {repo_id} -> {local_dir}")
+        return True
+    except Exception as exc:
+        logger.debug(f"[Model Cache] Could not symlink {repo_id} from cache: {exc}")
+        return False
 
 
 # =============================================================================
@@ -247,6 +265,10 @@ def _smart_download(
     Returns:
         Tuple of (success, message)
     """
+    # Try to symlink from HF cache first (no network needed)
+    if _symlink_cached_model(repo_id, local_dir):
+        return True, f"Symlinked cached model: {repo_id}"
+
     _raise_if_download_disabled(repo_id)
 
     # Ensure directory exists
@@ -631,8 +653,6 @@ def ensure_main_model(
     if check_main_model_exists(checkpoints_dir):
         return True, "Main model is available"
 
-    _raise_if_download_disabled("main model")
-
     print("\n" + "=" * 60)
     print("Main model not found. Starting automatic download...")
     print("=" * 60 + "\n")
@@ -668,8 +688,6 @@ def ensure_lm_model(
 
     if check_model_exists(model_name, checkpoints_dir):
         return True, f"LM model '{model_name}' is available"
-
-    _raise_if_download_disabled(model_name)
 
     # Check if this is a known LM model
     if model_name not in SUBMODEL_REGISTRY:
@@ -713,8 +731,6 @@ def ensure_dit_model(
 
     if check_model_exists(model_name, checkpoints_dir):
         return True, f"DiT model '{model_name}' is available"
-
-    _raise_if_download_disabled(model_name)
 
     # Check if this is the default turbo model (part of main)
     if model_name == "acestep-v15-turbo":
@@ -842,8 +858,6 @@ def ensure_vae_model(
 
     if check_vae_exists(vae_variant, checkpoints_dir):
         return True, f"VAE variant '{vae_variant}' is available"
-
-    _raise_if_download_disabled(vae_variant)
 
     # Absolute paths are user-supplied and cannot be downloaded. Fail with a
     # clear, path-specific diagnostic instead of routing through download_vae,
